@@ -1,0 +1,9 @@
+﻿@page "/"
+@using DxDocumentControlApp.Components
+
+
+<DxDocumentControl ContainerId="@ContainerId" />
+
+@code {
+    Guid ContainerId = Guid.NewGuid();
+}

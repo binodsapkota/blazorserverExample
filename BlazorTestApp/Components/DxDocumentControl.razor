@@ -1,0 +1,83 @@
+﻿@using MudBlazor
+
+<MudPaper Class="pa-4 mx-4 my-4" Elevation="2">
+    <MudText Typo="Typo.h5" Class="mb-3">Document Management</MudText>
+
+    <!-- Upload Section -->
+    <MudPaper Class="pa-3 mb-4" Elevation="1">
+        <MudText Typo="Typo.subtitle1">Upload Files</MudText>
+
+        <!-- Drag & Drop / Button Upload -->
+        <MudGrid Class="mt-2">
+            <MudItem xs="12" sm="6">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Upload">
+                    Select Files
+                </MudButton>
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudText Typo="Typo.caption" Class="d-block mt-1">
+                    Supported: PDF, DOCX, XLSX, CSV, JSON, TXT
+                </MudText>
+            </MudItem>
+        </MudGrid>
+
+        <!-- Upload Progress -->
+        <MudProgressLinear Value="0" Color="Color.Primary" Class="my-2" />
+    </MudPaper>
+
+    <!-- Files Table -->
+    <MudTable Items="Files" Dense="true" Hover="true" Bordered="true">
+        <HeaderContent>
+            <MudTh>Name</MudTh>
+            <MudTh>Type</MudTh>
+            <MudTh>Size (KB)</MudTh>
+            <MudTh>Version</MudTh>
+            <MudTh>Actions</MudTh>
+        </HeaderContent>
+
+        <RowTemplate>
+            <MudTd>@context.Name</MudTd>
+            <MudTd>@context.Type</MudTd>
+            <MudTd>@context.Size</MudTd>
+            <MudTd>@context.Version</MudTd>
+            <MudTd>
+                <MudIconButton Icon="@Icons.Material.Filled.Download" Color="Color.Primary" />
+                <MudIconButton Icon="@Icons.Material.Filled.Visibility" Color="Color.Secondary" />
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Info" />
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" />
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+
+
+
+    <!-- Preview Dialog -->
+    <MudDialog MaxWidth="MaxWidth.Large">
+        <DialogContent>
+            <MudText Typo="Typo.subtitle1">File Preview</MudText>
+            <MudPaper Class="pa-3 mt-2">
+                <p>Preview content will appear here (PDF, image, or text).</p>
+            </MudPaper>
+        </DialogContent>
+        <DialogActions>
+            <MudButton Color="Color.Primary">Close</MudButton>
+        </DialogActions>
+    </MudDialog>
+</MudPaper>
+@code {
+    // Dummy type for UI
+    private class DummyFile
+    {
+        public string Name { get; set; }
+        public string Type { get; set; }
+        public int Size { get; set; }
+        public int Version { get; set; }
+    }
+
+    private List<DummyFile> Files = new()
+    {
+        new DummyFile { Name = "SampleFile.pdf", Type = "PDF", Size = 120, Version = 3 },
+        new DummyFile { Name = "Report.docx", Type = "DOCX", Size = 45, Version = 1 },
+        new DummyFile { Name = "Data.csv", Type = "CSV", Size = 15, Version = 2 },
+    };
+}

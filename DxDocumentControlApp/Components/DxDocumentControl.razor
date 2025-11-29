@@ -1,0 +1,230 @@
+﻿@namespace DxDocumentControlApp.Components
+@using DxDocumentControlApp.Data
+@using DxDocumentControlApp.Services
+@using Microsoft.AspNetCore.Http
+@using Microsoft.AspNetCore.Components.Forms
+@inject IDocumentService DocumentService
+@inject ISnackbar Snackbar
+@inject IJSRuntime JS
+@rendermode InteractiveServer
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="my-4">
+    <!-- Upload Card -->
+    <MudPaper Class="pa-4 mb-4" Elevation="4">
+        <MudText Typo="Typo.h5" Class="mb-2">📁 Document Control</MudText>
+        <MudText Typo="Typo.subtitle2" Class="mb-3">Upload and manage your files</MudText>
+
+        <MudGrid>
+            <MudItem xs="12" sm="6">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Upload"
+                           OnClick="HandleUploadClick">
+                    Upload Files
+                </MudButton>
+                <MudButton OnClick="@(() => JS.InvokeVoidAsync("alert", "JS works!"))">Test JS</MudButton>
+                <InputFile @ref="_fileUpload" OnChange="HandleFiles" id="uploadInput" multiple style="display:none" />
+            </MudItem>
+            <MudItem xs="12" sm="6" Class="d-flex align-center">
+                @if (UploadProgress > 0)
+                {
+                    <MudProgressLinear Color="Color.Primary" Value="@UploadProgress" BufferValue="100"
+                                       Class="flex-grow-1 mx-2" />
+                    <MudText>@($"{UploadProgress:0}%")</MudText>
+                }
+            </MudItem>
+        </MudGrid>
+    </MudPaper>
+
+    <!-- Files Table -->
+    <MudPaper Elevation="4">
+        <MudTable Items="@Files" Dense="true" Hover="true" Bordered="true" Breakpoint="Breakpoint.Sm">
+            <HeaderContent>
+                <MudTh>Name</MudTh>
+                <MudTh>Type</MudTh>
+                <MudTh>Size (KB)</MudTh>
+                <MudTh>Version</MudTh>
+                <MudTh>Actions</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd>@context.FileName</MudTd>
+                <MudTd>@context.FileType</MudTd>
+                <MudTd>@(context.Size / 1024)</MudTd>
+                <MudTd>@(context.Versions?.Count ?? 0)</MudTd>
+                <MudTd>
+                    <MudTooltip Text="Download File">
+                        <MudIconButton Icon="@Icons.Material.Filled.Download" Color="Color.Primary"
+                                       OnClick="@(() => DownloadFile(context))" />
+                    </MudTooltip>
+                    <MudTooltip Text="Preview File">
+                        <MudIconButton Icon="@Icons.Material.Filled.Visibility" Color="Color.Secondary"
+                                       OnClick="@(() => ShowPreview(context))" />
+                    </MudTooltip>
+                    <MudTooltip Text="Replace File">
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Info"
+                                       OnClick="@(() => TriggerReplace(context))" />
+                    </MudTooltip>
+                    <InputFile @ref="_replaceInput" OnChange="HandleReplace" id="replaceInput" style="display:none" />
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    </MudPaper>
+</MudContainer>
+
+<!-- Preview Dialog -->
+<MudDialog @bind-IsVisible="_previewDialogVisible" MaxWidth="MaxWidth.Large">
+    <DialogContent>
+        @if (_previewType == "image" && _previewDataUrl != null)
+        {
+            <MudCard>
+                <img src="@_previewDataUrl" alt="Image Preview" style="max-width:100%; max-height:70vh;" />
+            </MudCard>
+        }
+        else if (_previewType == "pdf" && _previewDataUrl != null)
+        {
+            <MudCard>
+                <iframe src="@_previewDataUrl" width="100%" height="600px"></iframe>
+            </MudCard>
+        }
+        else if (_previewType == "text" && _previewContent != null)
+        {
+            <MudCard>
+                <pre style="white-space:pre-wrap;">@_previewContent</pre>
+            </MudCard>
+        }
+        else
+        {
+            <MudText>Preview not supported for this file type or file too large.</MudText>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton Color="Color.Primary" OnClick="() => _previewDialogVisible = false">Close</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [Parameter] public Guid ContainerId { get; set; }
+    private List<DocumentFile> Files = new();
+    private double UploadProgress = 0;
+
+    private InputFile _replaceInput;
+    private InputFile _fileUpload;
+    private DocumentFile _fileToReplace;
+
+    private bool _previewDialogVisible = false;
+    private string _previewContent;
+    private string _previewType;
+    private string _previewDataUrl;
+
+    protected override async Task OnInitializedAsync() => await LoadFiles();
+
+    private async Task LoadFiles()
+    {
+        Files = (await DocumentService.GetFilesAsync(ContainerId)).ToList();
+        StateHasChanged();
+    }
+    private async Task HandleUploadClick()
+    {
+        
+        await JS.InvokeVoidAsync("triggerInputFileClick", "uploadInput");
+    }
+
+    private async Task HandleFiles(InputFileChangeEventArgs e)
+    {
+        var total = e.GetMultipleFiles().Count;
+        var uploaded = 0;
+
+        foreach (var file in e.GetMultipleFiles())
+        {
+            try
+            {
+                await DocumentService.UploadFileAsync(new BrowserFileFormFile(file), ContainerId, "TestUser");
+                uploaded++;
+                UploadProgress = (uploaded * 100.0) / total;
+                Snackbar.Add($"Uploaded {file.Name}", Severity.Success);
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error uploading {file.Name}: {ex.Message}", Severity.Error);
+            }
+        }
+
+        UploadProgress = 0;
+        await LoadFiles();
+    }
+
+    private async Task DownloadFile(DocumentFile file)
+    {
+        if (file.Versions?.Count > 0)
+        {
+            var version = file.Versions.OrderBy(v => v.VersionNumber).Last();
+            await using var stream = await DocumentService.DownloadFileAsync(version.Id);
+
+            using var ms = new MemoryStream();
+            await stream.CopyToAsync(ms);
+            ms.Position = 0;
+
+            using var streamRef = new DotNetStreamReference(ms);
+            await JS.InvokeVoidAsync("downloadFileFromStream", file.FileName, streamRef);
+        }
+    }
+
+    private async Task TriggerReplace(DocumentFile file)
+    {
+        _fileToReplace = file;
+        await JS.InvokeVoidAsync("triggerInputFileClick", "replaceInput");
+    }
+
+    private async Task HandleReplace(InputFileChangeEventArgs e)
+    {
+        if (_fileToReplace != null && e.FileCount > 0)
+        {
+            var formFile = new BrowserFileFormFile(e.File);
+            try
+            {
+                await DocumentService.ReplaceFileAsync(formFile, _fileToReplace.Id, "TestUser");
+                Snackbar.Add($"Replaced {_fileToReplace.FileName} with {e.File.Name}", Severity.Success);
+                _fileToReplace = null;
+                await LoadFiles();
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error replacing file: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+
+    private async Task ShowPreview(DocumentFile file)
+    {
+        if (file.Versions?.Count > 0)
+        {
+            var version = file.Versions.OrderBy(v => v.VersionNumber).Last();
+            await using var stream = await DocumentService.DownloadFileAsync(version.Id);
+
+            var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+            using var ms = new MemoryStream();
+            await stream.CopyToAsync(ms);
+
+            if (extension is ".png" or ".jpg" or ".jpeg" or ".gif")
+            {
+                _previewType = "image";
+                _previewDataUrl = $"data:{file.FileType};base64,{Convert.ToBase64String(ms.ToArray())}";
+            }
+            else if (extension == ".pdf")
+            {
+                _previewType = "pdf";
+                _previewDataUrl = $"data:{file.FileType};base64,{Convert.ToBase64String(ms.ToArray())}";
+            }
+            else if (extension is ".txt" or ".csv" or ".json" or ".xml")
+            {
+                _previewType = "text";
+                ms.Position = 0;
+                _previewContent = await new StreamReader(ms).ReadToEndAsync();
+            }
+            else
+            {
+                _previewType = "unknown";
+            }
+
+            _previewDialogVisible = true;
+        }
+    }
+}

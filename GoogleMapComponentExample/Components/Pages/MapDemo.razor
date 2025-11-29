@@ -1,0 +1,30 @@
+﻿@page "/map-demo"
+@using GoogleMapComponentExample.Components
+
+<h3 class="mb-3">Google Map Demo</h3>
+
+<MapComponent Zoom="12"
+              CenterLat="43.6532"
+              CenterLng="-79.3832"
+              Markers="DemoMarkers" />
+
+@code {
+    List<MapComponent.MapMarker> DemoMarkers = new()
+    {
+        new MapComponent.MapMarker {
+            Id = "project1",
+            Title = "Project Location",
+            Lat = 43.651,
+            Lng = -79.347,
+            Color = "#1E90FF"
+        },
+
+        new MapComponent.MapMarker {
+            Id = "vehicle1",
+            Title = "Vehicle A",
+            Lat = 43.660,
+            Lng = -79.420,
+            Color = "#FF8C00"
+        }
+    };
+}

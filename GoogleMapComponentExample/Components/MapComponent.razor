@@ -1,0 +1,67 @@
+﻿@inject IJSRuntime JS
+@inject NavigationManager Nav
+@rendermode InteractiveServer
+<div id="@MapId" style="width:100%;height:450px;border:1px solid #ccc;"></div>
+
+@code {
+    private string MapId = $"map_{Guid.NewGuid():N}";
+    private DotNetObjectReference<MapComponent>? _dotNetRef;
+
+    [Parameter] public double CenterLat { get; set; } = 43.6532;
+    [Parameter] public double CenterLng { get; set; } = -79.3832;
+    [Parameter] public int Zoom { get; set; } = 12;
+
+    public class MapMarker
+    {
+        public string Id { get; set; } = "";
+        public string Title { get; set; } = "";
+        public double Lat { get; set; }
+        public double Lng { get; set; }
+        public string Color { get; set; } = "#1E90FF";
+        public string Type { get; set; } = "Project"; // "Project" or "Vehicle"
+    }
+
+    [Parameter] public List<MapMarker> Markers { get; set; } = new();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        Console.WriteLine("MapComponent OnAfterRenderAsync called"); // DEBUG
+        if (firstRender)
+        {
+            _dotNetRef = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("blazorMaps.registerDotNet", _dotNetRef);
+
+            await JS.InvokeVoidAsync("blazorMaps.initMap", MapId, new
+            {
+                center = new { lat = CenterLat, lng = CenterLng },
+                zoom = Zoom
+            });
+
+            foreach (var m in Markers)
+            {
+                await JS.InvokeVoidAsync("blazorMaps.addMarker", new
+                {
+                    id = m.Id,
+                    lat = m.Lat,
+                    lng = m.Lng,
+                    title = m.Title,
+                    color = m.Color
+                });
+            }
+        }
+    }
+
+    [JSInvokable("OnMarkerClicked")]
+    public void OnMarkerClicked(string markerId)
+    {
+        var marker = Markers.FirstOrDefault(m => m.Id == markerId);
+        if (marker == null) return;
+
+        if (marker.Type == "Project")
+            Nav.NavigateTo($"/project-details?projectId={marker.Id}");
+        else if (marker.Type == "Vehicle")
+            Nav.NavigateTo($"/vehicle-details?vehicleId={marker.Id}");
+    }
+
+    public void Dispose() => _dotNetRef?.Dispose();
+}
